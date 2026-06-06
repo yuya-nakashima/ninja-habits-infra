@@ -1,0 +1,31 @@
+{
+  "name": "ninja-habits-infra",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build":        "tsc",
+    "watch":        "tsc -w",
+    "cdk":          "cdk",
+    "deploy:dev":           "cdk deploy NinjaHabits-dev-Hosting NinjaHabits-dev-Api NinjaHabits-dev-Database --context stage=dev",
+    "deploy:dev:hosting":   "cdk deploy NinjaHabits-dev-Hosting --context stage=dev",
+    "deploy:dev:api":       "cdk deploy NinjaHabits-dev-Api --context stage=dev",
+    "deploy:dev:database":  "cdk deploy NinjaHabits-dev-Database --context stage=dev",
+    "deploy:prod":          "cdk deploy NinjaHabits-prod-Hosting NinjaHabits-prod-Api NinjaHabits-prod-Database --context stage=prod",
+    "deploy:prod:hosting":  "cdk deploy NinjaHabits-prod-Hosting --context stage=prod",
+    "deploy:prod:api":      "cdk deploy NinjaHabits-prod-Api --context stage=prod",
+    "deploy:prod:database": "cdk deploy NinjaHabits-prod-Database --context stage=prod",
+    "sync-app:dev":         "STAGE=dev bash scripts/sync-app.sh",
+    "sync-app:prod":        "STAGE=prod bash scripts/sync-app.sh"
+  },
+  "dependencies": {
+    "aws-cdk-lib":        "2.257.0",
+    "constructs":         "10.6.0",
+    "source-map-support": "0.5.21"
+  },
+  "devDependencies": {
+    "@types/node": "20.x",
+    "aws-cdk":     "2.1125.0",
+    "ts-node":     "10.9.2",
+    "typescript":  "5.5.4"
+  }
+}
