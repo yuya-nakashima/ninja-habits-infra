@@ -4,6 +4,21 @@ export interface StageConfig {
   stageName: string;
   region:    string;
   account?:  string; // explicit account overrides CDK_DEFAULT_ACCOUNT
+  auth: {
+    apple?: {
+      clientId: string;
+      keyId: string;
+      privateKeySecretArn: string;
+      teamId: string;
+    };
+    callbackUrls: string[];
+    domainPrefix: string;
+    google?: {
+      clientId: string;
+      clientSecretArn: string;
+    };
+    logoutUrls: string[];
+  };
   api: {
     allowedWebCidrs: string[];
     appPort: number;
@@ -31,6 +46,11 @@ export const STAGES: Record<string, StageConfig> = {
   dev: {
     stageName: 'dev',
     region:    'ap-northeast-1',
+    auth: {
+      callbackUrls: ['http://localhost:5173/'],
+      domainPrefix: 'ninja-habits-dev',
+      logoutUrls:   ['http://localhost:5173/'],
+    },
     api: {
       allowedWebCidrs: ['0.0.0.0/0'],
       appPort:         8080,
@@ -55,6 +75,12 @@ export const STAGES: Record<string, StageConfig> = {
   prod: {
     stageName: 'prod',
     region:    'ap-northeast-1',
+    auth: {
+      // Replace with the production Web origin before deploying prod Auth.
+      callbackUrls: ['https://example.com/'],
+      domainPrefix: 'ninja-habits-prod',
+      logoutUrls:   ['https://example.com/'],
+    },
     api: {
       // Public consumer API until WAF/domain policy is finalized before launch.
       allowedWebCidrs: ['0.0.0.0/0'],
