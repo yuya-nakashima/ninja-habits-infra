@@ -2,6 +2,7 @@
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { ApiStack } from '../lib/api-stack';
+import { AuthStack } from '../lib/auth-stack';
 import { DatabaseStack } from '../lib/database-stack';
 import { HostingStack } from '../lib/hosting-stack';
 import { getConfig } from '../lib/config';
@@ -14,6 +15,19 @@ const config = getConfig(stage);
 
 new HostingStack(app, `NinjaHabits-${stage}-Hosting`, {
   stageName: stage,
+  env: {
+    account: config.account ?? process.env.CDK_DEFAULT_ACCOUNT,
+    region:  config.region,
+  },
+});
+
+new AuthStack(app, `NinjaHabits-${stage}-Auth`, {
+  stageName:    stage,
+  apple:        config.auth.apple,
+  callbackUrls: config.auth.callbackUrls,
+  domainPrefix: config.auth.domainPrefix,
+  google:       config.auth.google,
+  logoutUrls:   config.auth.logoutUrls,
   env: {
     account: config.account ?? process.env.CDK_DEFAULT_ACCOUNT,
     region:  config.region,
