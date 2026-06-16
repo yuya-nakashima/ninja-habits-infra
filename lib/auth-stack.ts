@@ -1,5 +1,6 @@
 import * as cdk from 'aws-cdk-lib';
 import * as cognito from 'aws-cdk-lib/aws-cognito';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct, IDependable } from 'constructs';
 
 interface SocialAuthProviderConfig {
@@ -129,6 +130,18 @@ export class AuthStack extends cdk.Stack {
     });
 
     const hostedUiBaseUrl = `https://${userPoolDomain.domainName}.auth.${this.region}.amazoncognito.com`;
+
+    // API インスタンスが起動時に読む Cognito 設定（user-data が SSM から取得し env へ）。
+    // issuer は JWT 検証用の標準 Cognito issuer 形式。
+    const apiSsmPrefix = `/ninja-habits/${props.stageName}/api`;
+    new ssm.StringParameter(this, 'CognitoIssuerParam', {
+      parameterName: `${apiSsmPrefix}/cognito-issuer`,
+      stringValue: `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`,
+    });
+    new ssm.StringParameter(this, 'CognitoClientIdParam', {
+      parameterName: `${apiSsmPrefix}/cognito-client-id`,
+      stringValue: userPoolClient.userPoolClientId,
+    });
 
     new cdk.CfnOutput(this, 'UserPoolId', {
       value: userPool.userPoolId,

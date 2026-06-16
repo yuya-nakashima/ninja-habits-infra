@@ -21,6 +21,9 @@ interface DatabaseStackProps extends cdk.StackProps {
 }
 
 export class DatabaseStack extends cdk.Stack {
+  // API インスタンスロールへ scoped grant するため公開する。
+  public readonly adminSecret: secretsmanager.ISecret;
+
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
 
@@ -52,6 +55,7 @@ export class DatabaseStack extends cdk.Stack {
       },
     });
     adminSecret.applyRemovalPolicy(secretRemovalPolicy);
+    this.adminSecret = adminSecret;
 
     const instance = new rds.DatabaseInstance(this, 'PostgresInstance', {
       allocatedStorage: props.allocatedStorage,

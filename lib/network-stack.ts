@@ -1,6 +1,7 @@
 import * as cdk from 'aws-cdk-lib';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 interface NetworkStackProps extends cdk.StackProps {
@@ -8,6 +9,7 @@ interface NetworkStackProps extends cdk.StackProps {
   vpcCidr: string;
   natGateways: number;
   allowedWebCidrs: string[];
+  apiAllowedOrigin: string;
   appPort: number;
   certificateArn?: string;
 }
@@ -60,13 +62,23 @@ export class NetworkStack extends cdk.Stack {
     );
 
     // API デプロイ成果物（tgz）。Api インスタンス起動前に存在させるため Network に置く。
+    // 名前は決定的にして CI ロールの S3 権限を `ninja-habits-api-artifacts-*` で絞れるようにする。
     this.artifactBucket = new s3.Bucket(this, 'ApiArtifactBucket', {
+      bucketName: `ninja-habits-api-artifacts-${props.stageName}-${this.account}`,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       encryption: s3.BucketEncryption.S3_MANAGED,
       enforceSSL: true,
       versioned: true,
       removalPolicy: props.stageName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
       autoDeleteObjects: props.stageName !== 'prod',
+    });
+
+    // API インスタンスが起動時に読む基盤 SSM パラメータ。
+    // artifact-key（可変・リリース毎に CI/bootstrap が更新）は CDK では作らない。
+    // cognito-issuer / cognito-client-id は AuthStack が公開する。
+    new ssm.StringParameter(this, 'ApiAllowedOriginParam', {
+      parameterName: `/ninja-habits/${props.stageName}/api/allowed-origin`,
+      stringValue: props.apiAllowedOrigin,
     });
 
     new cdk.CfnOutput(this, 'VpcId', { value: this.vpc.vpcId, description: 'Shared VPC ID' });

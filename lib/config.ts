@@ -1,5 +1,9 @@
 // Stage-based configuration. Add accounts/regions here as environments grow.
 
+// GitHub repo whose Actions assume the CI/CD release role (CicdStack OIDC trust).
+export const GITHUB_OWNER = 'yuya-nakashima';
+export const GITHUB_REPO = 'ninja-habits-infra';
+
 export interface StageConfig {
   stageName: string;
   region:    string;
@@ -21,6 +25,7 @@ export interface StageConfig {
   };
   api: {
     allowedWebCidrs: string[];
+    apiAllowedOrigin: string; // API の CORS 許可オリジン（SSM 経由で user-data が読む）
     appPort: number;
     certificateArn?: string;
     healthCheckPath: string;
@@ -52,14 +57,15 @@ export const STAGES: Record<string, StageConfig> = {
       logoutUrls:   ['http://localhost:5173/'],
     },
     api: {
-      allowedWebCidrs: ['0.0.0.0/0'],
-      appPort:         8080,
-      healthCheckPath: '/health',
-      instanceType:    't3.micro',
-      maxCapacity:     2,
-      minCapacity:     1,
-      natGateways:     1,
-      vpcCidr:         '10.20.0.0/16',
+      allowedWebCidrs:  ['0.0.0.0/0'],
+      apiAllowedOrigin: 'http://localhost:5173',
+      appPort:          8080,
+      healthCheckPath:  '/health',
+      instanceType:     't3.micro',
+      maxCapacity:      2,
+      minCapacity:      1,
+      natGateways:      1,
+      vpcCidr:          '10.20.0.0/16',
     },
     database: {
       allocatedStorage:    20,
@@ -83,14 +89,16 @@ export const STAGES: Record<string, StageConfig> = {
     },
     api: {
       // Public consumer API until WAF/domain policy is finalized before launch.
-      allowedWebCidrs: ['0.0.0.0/0'],
-      appPort:         8080,
-      healthCheckPath: '/health',
-      instanceType:    't3.micro',
-      maxCapacity:     4,
-      minCapacity:     2,
-      natGateways:     2,
-      vpcCidr:         '10.21.0.0/16',
+      allowedWebCidrs:  ['0.0.0.0/0'],
+      // Replace with the production Web origin before deploying prod Api.
+      apiAllowedOrigin: 'https://example.com',
+      appPort:          8080,
+      healthCheckPath:  '/health',
+      instanceType:     't3.micro',
+      maxCapacity:      4,
+      minCapacity:      2,
+      natGateways:      2,
+      vpcCidr:          '10.21.0.0/16',
     },
     database: {
       allocatedStorage:    20,

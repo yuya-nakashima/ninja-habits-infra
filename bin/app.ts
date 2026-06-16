@@ -3,10 +3,11 @@ import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
 import { ApiStack } from '../lib/api-stack';
 import { AuthStack } from '../lib/auth-stack';
+import { CicdStack } from '../lib/cicd-stack';
 import { DatabaseStack } from '../lib/database-stack';
 import { HostingStack } from '../lib/hosting-stack';
 import { NetworkStack } from '../lib/network-stack';
-import { getConfig } from '../lib/config';
+import { getConfig, GITHUB_OWNER, GITHUB_REPO } from '../lib/config';
 
 const app = new cdk.App();
 
@@ -18,6 +19,15 @@ const env = {
   account: config.account ?? process.env.CDK_DEFAULT_ACCOUNT,
   region:  config.region,
 };
+
+// Account-level CI/CD（stage 非依存）。GitHub OIDC provider + release role。
+// 既存 OIDC provider を再利用する場合: --context oidcProviderArn=arn:...
+new CicdStack(app, 'NinjaHabits-Cicd', {
+  githubOwner:             GITHUB_OWNER,
+  githubRepo:              GITHUB_REPO,
+  existingOidcProviderArn: app.node.tryGetContext('oidcProviderArn') as string | undefined,
+  env,
+});
 
 new HostingStack(app, `NinjaHabits-${stage}-Hosting`, { stageName: stage, env });
 
@@ -34,11 +44,12 @@ new AuthStack(app, `NinjaHabits-${stage}-Auth`, {
 // 依存の根: VPC / SG / 成果物バケットを所有。Database / Api が参照する。
 const networkStack = new NetworkStack(app, `NinjaHabits-${stage}-Network`, {
   stageName:       stage,
-  vpcCidr:         config.api.vpcCidr,
-  natGateways:     config.api.natGateways,
-  allowedWebCidrs: config.api.allowedWebCidrs,
-  appPort:         config.api.appPort,
-  certificateArn:  config.api.certificateArn,
+  vpcCidr:          config.api.vpcCidr,
+  natGateways:      config.api.natGateways,
+  allowedWebCidrs:  config.api.allowedWebCidrs,
+  apiAllowedOrigin: config.api.apiAllowedOrigin,
+  appPort:          config.api.appPort,
+  certificateArn:   config.api.certificateArn,
   env,
 });
 
@@ -70,6 +81,7 @@ const apiStack = new ApiStack(app, `NinjaHabits-${stage}-Api`, {
   albSecurityGroup:         networkStack.albSecurityGroup,
   apiInstanceSecurityGroup: networkStack.apiInstanceSecurityGroup,
   artifactBucket:           networkStack.artifactBucket,
+  databaseSecret:           databaseStack.adminSecret,
   env,
 });
 
