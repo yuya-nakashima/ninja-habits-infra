@@ -112,7 +112,7 @@ export class CicdStack extends cdk.Stack {
 
     new cdk.CfnOutput(this, 'ReleaseRoleArn', {
       value: role.roleArn,
-      description: 'IAM role ARN for GitHub Actions OIDC (set as secret AWS_DEPLOY_ROLE_ARN)',
+      description: 'IAM role ARN for GitHub Actions OIDC (set as secret NINJA_HABITS_AWS_DEPLOY_ROLE_ARN)',
     });
     if (!props.existingOidcProviderArn) {
       new cdk.CfnOutput(this, 'GithubOidcProviderArn', {

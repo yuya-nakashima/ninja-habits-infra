@@ -80,7 +80,7 @@ echo "Artifact:        s3://$BUCKET/$KEY"
 # Remote script. The header decodes base64-injected values (no shell-special
 # chars, so no injection even if the artifact key contains quotes); the quoted
 # heredoc body runs on the instance and builds DATABASE_URL the same way
-# user-data does (URL-encoded user/password, sslmode=require).
+# user-data does (URL-encoded user/password, libpq-compatible sslmode=require).
 REMOTE_HEADER="$(printf 'STAGE="$(printf %%s %s|base64 -d)"\nREGION="$(printf %%s %s|base64 -d)"\nARTIFACT_BUCKET="$(printf %%s %s|base64 -d)"\nARTIFACT_KEY="$(printf %%s %s|base64 -d)"\n' \
   "$(b64 "$STAGE")" "$(b64 "$AWS_REGION")" "$(b64 "$BUCKET")" "$(b64 "$KEY")")"
 REMOTE_BODY="$(cat <<'RS'
@@ -94,7 +94,7 @@ DB_SECRET_JSON="$(aws secretsmanager get-secret-value --region "$REGION" --secre
 DB_USER="$(printf '%s' "$DB_SECRET_JSON" | jq -r '.username')"
 DB_PASS="$(printf '%s' "$DB_SECRET_JSON" | jq -r '.password')"
 enc() { python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"; }
-export DATABASE_URL="postgresql://$(enc "$DB_USER"):$(enc "$DB_PASS")@$DB_ENDPOINT:5432/$DB_NAME?sslmode=require"
+export DATABASE_URL="postgresql://$(enc "$DB_USER"):$(enc "$DB_PASS")@$DB_ENDPOINT:5432/$DB_NAME?sslmode=require&uselibpqcompat=true"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 aws s3 cp --region "$REGION" "s3://$ARTIFACT_BUCKET/$ARTIFACT_KEY" "$TMP/app.tgz"

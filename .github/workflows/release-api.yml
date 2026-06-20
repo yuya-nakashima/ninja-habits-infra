@@ -2,9 +2,9 @@
 # the release flow (upload -> migrate -> promote -> instance refresh).
 #
 # Required repo secrets:
-#   AWS_DEPLOY_ROLE_ARN  ARN of CicdStack's ReleaseRole (output: ReleaseRoleArn)
-#   APP_REPO_TOKEN       token with read access to yuya-nakashima/ninja-habits
-#                        (PAT or GitHub App token; only needed if that repo is private)
+#   NINJA_HABITS_AWS_DEPLOY_ROLE_ARN  ARN of CicdStack's ReleaseRole (output: ReleaseRoleArn)
+#   NINJA_HABITS_APP_REPO_TOKEN       token with read access to yuya-nakashima/ninja-habits
+#                                     (PAT or GitHub App token; only needed if that repo is private)
 #
 # Prereqs for the target stage (manual, once): deploy:<stage> (through Database),
 # then deploy:<stage>:api. See docs/deploy.md §6.
@@ -50,7 +50,7 @@ jobs:
         with:
           repository: yuya-nakashima/ninja-habits
           ref: ${{ inputs.app_ref }}
-          token: ${{ secrets.APP_REPO_TOKEN }}
+          token: ${{ secrets.NINJA_HABITS_APP_REPO_TOKEN }}
           path: app
 
       - uses: actions/setup-node@v4
@@ -76,7 +76,7 @@ jobs:
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          role-to-assume: ${{ secrets.NINJA_HABITS_AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
           role-duration-seconds: 7200
 

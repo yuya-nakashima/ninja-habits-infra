@@ -101,7 +101,7 @@ DB_PASS="$(printf '%s' "$DB_SECRET_JSON" | jq -r '.password')"
 urlencode() { python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$1"; }
 DB_USER_ENC="$(urlencode "$DB_USER")"
 DB_PASS_ENC="$(urlencode "$DB_PASS")"
-DATABASE_URL="postgresql://$DB_USER_ENC:$DB_PASS_ENC@$DB_ENDPOINT:5432/$DB_NAME?sslmode=require"
+DATABASE_URL="postgresql://$DB_USER_ENC:$DB_PASS_ENC@$DB_ENDPOINT:5432/$DB_NAME?sslmode=require&uselibpqcompat=true"
 
 # 専用ユーザ + S3 から成果物を download/extract（再 refresh でも冪等）
 id -u "$APP_USER" >/dev/null 2>&1 || useradd --system --home-dir "$APP_DIR" --shell /sbin/nologin "$APP_USER"

@@ -59,8 +59,8 @@ T-020（方式設計）は合意済み。T-030 のうち CDK 側（NetworkStack 
   - **port**: `5432` 固定（必要なら SSM 化）
   - **dbname**: SSM Parameter `/ninja-habits/<stage>/db/name`（config の `databaseName`）
   - **user / password**: Secrets Manager（database-stack の `DatabaseSecretArn`）の JSON フィールド `username` / `password`
-  - **SSL**: RDS なので `sslmode=require` を付与（`pg` の接続文字列に明記）
-  - 形: `postgresql://<user>:<pass>@<host>:5432/<dbname>?sslmode=require`
+  - **SSL**: RDS なので `sslmode=require&uselibpqcompat=true` を付与（`pg`/`pg-connection-string` が `sslmode=require` を `verify-full` 扱いにして RDS CA 検証で落ちるのを避け、libpq 互換の require として扱う）
+  - 形: `postgresql://<user>:<pass>@<host>:5432/<dbname>?sslmode=require&uselibpqcompat=true`
   - **user / password は URL エンコードしてから組み立てる**（`encodeURIComponent` 相当）。現状の admin secret は URL 危険文字を除外しているが（database-stack の `excludeCharacters`）、エンコードを常に通す契約にして将来のシークレット変更に強くする。
   - 代替（より堅い）: `DATABASE_URL` を組まず、`PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/`PGDATABASE`/`PGSSLMODE` を env で渡す手もある（要 app 側で connectionString 未指定時のフォールバック対応）。今回は `DATABASE_URL` 方式を採用。
   - ※ この admin secret は `username`/`password` のみを持ち、host/port/dbname は含まない前提（RDS は別 output）。
@@ -126,13 +126,13 @@ T-020（方式設計）は合意済み。T-030 のうち CDK 側（NetworkStack 
 - **ステージ単位の直列化（必須）**: release ジョブに stage 単位の `concurrency`（例 `group: release-${stage}`, `cancel-in-progress: false`）を付け、同一ステージの release を同時に走らせない。`refresh-api.sh` は進行中 refresh を再利用するため、別 release が重なると前 release の refresh（旧 artifact 対象）を拾い、新 artifact への全台入替を保証できない。upload→migrate→promote→refresh の一連が 1 release 内で順に完了することを前提にする。
 
 #### 実装（CicdStack + workflow）
-- **CicdStack（`NinjaHabits-Cicd`, account 単位）**: GitHub OIDC provider + release ロール `ninja-habits-ci-release`。`npm run deploy:cicd` で 1 回デプロイ。出力 `ReleaseRoleArn` を repo secret `AWS_DEPLOY_ROLE_ARN` に設定する。
+- **CicdStack（`NinjaHabits-Cicd`, account 単位）**: GitHub OIDC provider + release ロール `ninja-habits-ci-release`。`npm run deploy:cicd` で 1 回デプロイ。出力 `ReleaseRoleArn` を repo secret `NINJA_HABITS_AWS_DEPLOY_ROLE_ARN` に設定する。
   - OIDC trust: `repo:yuya-nakashima/ninja-habits-infra:*`（後で branch/environment に絞れる）。
   - ロール権限は release flow に限定（cdk deploy や DB secret 取得は含まない。後者は instance ロール）。S3=`ninja-habits-api-artifacts-*`（put + multipart）、SSM PutParameter=`/ninja-habits/*/api/artifact-key`（DB 等の他パラメータは触れない）、SendCommand=`AWS-RunShellScript` + `Role=ninja-habits-api` タグのインスタンス、ASG refresh=`NinjaHabits-*`。
   - `maxSessionDuration=2h`（refresh の最大待ちを含む release 全体をカバー）。
   - OIDC provider は account 1 つ。既存があれば `--context oidcProviderArn=arn:...` で import。
 - **workflow `.github/workflows/release-api.yml`（infra repo）**: `workflow_dispatch`（inputs: `stage`, `app_ref`）、stage 単位 concurrency、OIDC。app repo を checkout して artifact をビルド（`npm ci`→`test`→`api:build`→`npm ci --omit=dev`→tar）→ **ビルド後に AWS 認証を assume**（`role-duration-seconds=7200`。遅い build/test が認証ウィンドウを食わないように）→ `upload`→`run-migration`→`promote`→`refresh` を順に実行。
-  - 必要 secret: `AWS_DEPLOY_ROLE_ARN`、`APP_REPO_TOKEN`（private な ninja-habits を checkout するため）。
+  - 必要 secret: `NINJA_HABITS_AWS_DEPLOY_ROLE_ARN`、`NINJA_HABITS_APP_REPO_TOKEN`（private な ninja-habits を checkout するため）。
   - artifact key は app の short SHA から決定的（`api/ninja-habits-api-<sha>.tgz`）なので、各ステップは key を解決し直さず共有できる。
   - refresh は `MAX_WAIT=2400` で exit 2 を回避。
 
@@ -171,7 +171,7 @@ T-020（方式設計）は合意済み。T-030 のうち CDK 側（NetworkStack 
 
 ## 未決 / 次アクション
 - **AWS 実デプロイ**: dev へ Network→Database→（artifact 投入）→Api を流し、§6 初回手順を実走で検証（database/api stack は継続課金あり）。
-- **CI/CD 残**: `npm run deploy:cicd` 実行 → 出力 ARN を `AWS_DEPLOY_ROLE_ARN` に、`APP_REPO_TOKEN` を発行・登録。OIDC trust を `:ref:refs/heads/main` 等へ絞るかは運用時に判断。prod は environment 承認ゲートの付与を検討。
+- **CI/CD 残**: `npm run deploy:cicd` 実行 → 出力 ARN を `NINJA_HABITS_AWS_DEPLOY_ROLE_ARN` に、`NINJA_HABITS_APP_REPO_TOKEN` を発行・登録。OIDC trust を `:ref:refs/heads/main` 等へ絞るかは運用時に判断。prod は environment 承認ゲートの付与を検討。
 - **prod 値の差し替え**: `config.api.apiAllowedOrigin`（現 `https://example.com`）と Auth callback/logout URL を本番 Web オリジンへ。
 - in-VPC CodeBuild 案を migration 実行に将来採るかの判断（現状は SSM Run Command で十分）。
 - T-019（HTTPS/ドメイン/WAF）と合わせて 443 リスナー・証明書を有効化。
