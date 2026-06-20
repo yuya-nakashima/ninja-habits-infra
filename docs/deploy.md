@@ -136,6 +136,19 @@ T-020（方式設計）は合意済み。T-030 のうち CDK 側（NetworkStack 
   - artifact key は app の short SHA から決定的（`api/ninja-habits-api-<sha>.tgz`）なので、各ステップは key を解決し直さず共有できる。
   - refresh は `MAX_WAIT=2400` で exit 2 を回避。
 
+## 停止 / 削除（dev のコスト停止）
+
+dev で継続課金が出るのは **Network（NAT GW ~ $33/mo + 通信）**、**Database（RDS t4g.micro + storage + backup）**、**Api（ALB ~ $16/mo + EC2 t3.micro）**。
+NAT GW・ALB は「停止」が無く削除のみ、RDS の stop は最長7日で自動再開＋storage 課金継続のため、**dev はコストを止めたいなら削除する**。
+
+- 削除（依存の逆順。まとめて指定すれば cdk が順序解決）:
+  `npm run destroy:dev:billable`（= `cdk destroy NinjaHabits-dev-Api NinjaHabits-dev-Database NinjaHabits-dev-Network --context stage=dev`）
+  - dev Database は `removalPolicy=destroy`（snapshot 無し）→ **データ・secret は消える**（dev 前提）。
+  - dev artifact バケットは `autoDeleteObjects`+`DESTROY` で中身ごと削除。
+- **残す（課金ほぼ無し）**: `NinjaHabits-Cicd`（IAM/OIDC=無料）、`*-dev-Auth`（Cognito 無料枠）、`*-dev-Hosting`（S3+CloudFront 数円）。消すと再設定が要るので通常は残す。
+- **再構築**: `npm run deploy:dev`（Network/Database 再作成）→ artifact を再 `upload`/`promote`（バケット名は決定的だが中身は消えているため再 upload 必須。`artifact-key` SSM は CDK 外なので残るが指す先が空になる）→ `deploy:dev:api` → `migrate-api:dev`。
+- **prod 注意**: Database は `deletionProtection=true` + `removalPolicy=snapshot`。`cdk destroy` はそのままでは保護で止まり、外すと snapshot を取得して削除。意図的な削除時のみ protection を外す。
+
 ## 代替案（今回は不採用、将来検討）
 - **AMI 焼き込み（Packer）**: 起動が速く不変。リリース毎の AMI ビルドと LaunchTemplate 更新が要る。トラフィック増/起動頻度が上がったら移行。
 - **コンテナ（ECR + ECS/Fargate）**: スケール・運用は楽だが、現行 EC2/ASG からの構成変更が大きい。Paid 規模化で再検討。

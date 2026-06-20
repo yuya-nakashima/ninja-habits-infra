@@ -13,6 +13,7 @@
     "deploy:dev:network":   "cdk deploy NinjaHabits-dev-Network --context stage=dev",
     "deploy:dev:database":  "cdk deploy NinjaHabits-dev-Database --context stage=dev",
     "deploy:dev:api":       "cdk deploy NinjaHabits-dev-Api --context stage=dev",
+    "destroy:dev:billable": "cdk destroy NinjaHabits-dev-Api NinjaHabits-dev-Database NinjaHabits-dev-Network --context stage=dev",
     "deploy:prod":          "cdk deploy NinjaHabits-prod-Hosting NinjaHabits-prod-Auth NinjaHabits-prod-Network NinjaHabits-prod-Database --context stage=prod",
     "deploy:prod:hosting":  "cdk deploy NinjaHabits-prod-Hosting --context stage=prod",
     "deploy:prod:auth":     "cdk deploy NinjaHabits-prod-Auth --context stage=prod",
