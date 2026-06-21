@@ -3,6 +3,7 @@ import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as rds from 'aws-cdk-lib/aws-rds';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
+import * as ssm from 'aws-cdk-lib/aws-ssm';
 import { Construct } from 'constructs';
 
 interface DatabaseStackProps extends cdk.StackProps {
@@ -20,6 +21,9 @@ interface DatabaseStackProps extends cdk.StackProps {
 }
 
 export class DatabaseStack extends cdk.Stack {
+  // API インスタンスロールへ scoped grant するため公開する。
+  public readonly adminSecret: secretsmanager.ISecret;
+
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
 
@@ -51,6 +55,7 @@ export class DatabaseStack extends cdk.Stack {
       },
     });
     adminSecret.applyRemovalPolicy(secretRemovalPolicy);
+    this.adminSecret = adminSecret;
 
     const instance = new rds.DatabaseInstance(this, 'PostgresInstance', {
       allocatedStorage: props.allocatedStorage,
@@ -80,6 +85,21 @@ export class DatabaseStack extends cdk.Stack {
       storageType: rds.StorageType.GP3,
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+    });
+
+    // API インスタンスが起動時に解決する DB 接続情報（DATABASE_URL 組み立て用）。
+    const ssmPrefix = `/ninja-habits/${props.stageName}/db`;
+    new ssm.StringParameter(this, 'DbEndpointParam', {
+      parameterName: `${ssmPrefix}/endpoint`,
+      stringValue: instance.dbInstanceEndpointAddress,
+    });
+    new ssm.StringParameter(this, 'DbNameParam', {
+      parameterName: `${ssmPrefix}/name`,
+      stringValue: props.databaseName,
+    });
+    new ssm.StringParameter(this, 'DbSecretArnParam', {
+      parameterName: `${ssmPrefix}/secret-arn`,
+      stringValue: adminSecret.secretArn,
     });
 
     new cdk.CfnOutput(this, 'DatabaseEndpointAddress', {

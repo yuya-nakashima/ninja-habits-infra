@@ -1,0 +1,95 @@
+# Release the ninja-habits API: build the artifact from the app repo, then run
+# the release flow (upload -> migrate -> promote -> instance refresh).
+#
+# Required repo secrets:
+#   NINJA_HABITS_AWS_DEPLOY_ROLE_ARN  ARN of CicdStack's ReleaseRole (output: ReleaseRoleArn)
+#   NINJA_HABITS_APP_REPO_TOKEN       token with read access to yuya-nakashima/ninja-habits
+#                                     (PAT or GitHub App token; only needed if that repo is private)
+#
+# Prereqs for the target stage (manual, once): deploy:<stage> (through Database),
+# then deploy:<stage>:api. See docs/deploy.md §6.
+
+name: Release API
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: Target stage
+        type: choice
+        options: [dev, prod]
+        default: dev
+      app_ref:
+        description: ninja-habits ref to build (branch/tag/sha)
+        type: string
+        default: main
+
+# Serialize releases per stage: refresh-api.sh reuses an in-progress refresh, so
+# overlapping releases of the same stage must not run concurrently (deploy.md §7).
+concurrency:
+  group: release-${{ inputs.stage }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+  STAGE: ${{ inputs.stage }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout infra (scripts)
+        uses: actions/checkout@v4
+
+      - name: Checkout app (ninja-habits)
+        uses: actions/checkout@v4
+        with:
+          repository: yuya-nakashima/ninja-habits
+          ref: ${{ inputs.app_ref }}
+          token: ${{ secrets.NINJA_HABITS_APP_REPO_TOKEN }}
+          path: app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build, test and package API artifact
+        working-directory: app
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test
+          npm run api:build
+          npm ci --omit=dev
+          APP_SHA="$(git rev-parse --short HEAD)"
+          echo "APP_SHA=$APP_SHA" >> "$GITHUB_ENV"
+          echo "ARTIFACT_KEY=api/ninja-habits-api-${APP_SHA}.tgz" >> "$GITHUB_ENV"
+          tar -czf "$RUNNER_TEMP/api.tgz" dist-api package.json node_modules
+
+      # Assume the role AFTER the (slow) build/test so the credential window covers
+      # only the AWS steps (upload -> migrate -> promote -> refresh). role-duration
+      # matches the role's 2h maxSessionDuration for the ~40min refresh wait.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.NINJA_HABITS_AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-duration-seconds: 7200
+
+      - name: Upload artifact (no promote yet)
+        run: bash scripts/set-api-artifact.sh upload "$RUNNER_TEMP/api.tgz" "$APP_SHA"
+
+      - name: Run DB migration with the new artifact
+        run: bash scripts/run-migration.sh "$ARTIFACT_KEY"
+
+      - name: Promote artifact-key (only after migration succeeds)
+        run: bash scripts/set-api-artifact.sh promote "$ARTIFACT_KEY"
+
+      - name: Instance refresh
+        env:
+          MAX_WAIT: "2400"   # ~40 min; exit 2 (still running) would fail this step otherwise
+        run: bash scripts/refresh-api.sh
