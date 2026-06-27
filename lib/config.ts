@@ -4,10 +4,19 @@
 export const GITHUB_OWNER = 'yuya-nakashima';
 export const GITHUB_REPO = 'ninja-habits-infra';
 
+export interface DomainConfig {
+  hostedZoneId:              string;
+  hostedZoneName:            string;
+  apiDomain:                 string; // ALB が受け持つドメイン（例: api-dev.ninja-habits.com）
+  webDomain:                 string; // CloudFront が受け持つドメイン（例: dev.ninja-habits.com）
+  cloudFrontCertificateArn:  string; // us-east-1 の ACM 証明書（CloudFront 専用）
+}
+
 export interface StageConfig {
   stageName: string;
   region:    string;
   account?:  string; // explicit account overrides CDK_DEFAULT_ACCOUNT
+  domain?:   DomainConfig;
   auth: {
     apple?: {
       clientId: string;
@@ -27,7 +36,7 @@ export interface StageConfig {
     allowedWebCidrs: string[];
     apiAllowedOrigin: string; // API の CORS 許可オリジン（SSM 経由で user-data が読む）
     appPort: number;
-    certificateArn?: string;
+    certificateArn?: string;  // ap-northeast-1 の ACM 証明書（ALB 用）
     healthCheckPath: string;
     instanceType: string;
     maxCapacity: number;
@@ -51,14 +60,22 @@ export const STAGES: Record<string, StageConfig> = {
   dev: {
     stageName: 'dev',
     region:    'ap-northeast-1',
+    domain: {
+      hostedZoneId:             'Z036921413X8FF54G71K8',
+      hostedZoneName:           'ninja-habits.com',
+      apiDomain:                'api-dev.ninja-habits.com',
+      webDomain:                'dev.ninja-habits.com',
+      cloudFrontCertificateArn: 'arn:aws:acm:us-east-1:720623131603:certificate/3058bcf1-13ae-46ff-90ea-3cdc352080bd',
+    },
     auth: {
-      callbackUrls: ['http://localhost:5173/'],
+      callbackUrls: ['http://localhost:5173/', 'https://dev.ninja-habits.com/'],
       domainPrefix: 'ninja-habits-dev',
-      logoutUrls:   ['http://localhost:5173/'],
+      logoutUrls:   ['http://localhost:5173/', 'https://dev.ninja-habits.com/'],
     },
     api: {
       allowedWebCidrs:  ['0.0.0.0/0'],
-      apiAllowedOrigin: 'http://localhost:5173',
+      apiAllowedOrigin: 'https://dev.ninja-habits.com',
+      certificateArn:   'arn:aws:acm:ap-northeast-1:720623131603:certificate/b733b3c3-0a99-43ac-a9bc-2e1cc25581c6',
       appPort:          8080,
       healthCheckPath:  '/health',
       instanceType:     't3.micro',

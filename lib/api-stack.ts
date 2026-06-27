@@ -3,6 +3,8 @@ import * as autoscaling from 'aws-cdk-lib/aws-autoscaling';
 import * as ec2 from 'aws-cdk-lib/aws-ec2';
 import * as elbv2 from 'aws-cdk-lib/aws-elasticloadbalancingv2';
 import * as iam from 'aws-cdk-lib/aws-iam';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import { Construct } from 'constructs';
@@ -14,6 +16,9 @@ interface ApiStackProps extends cdk.StackProps {
   stageName: string;
   appPort: number;
   certificateArn?: string;
+  apiDomain?: string;       // Route 53 A レコードのドメイン（例: api-dev.ninja-habits.com）
+  hostedZoneId?: string;
+  hostedZoneName?: string;
   healthCheckPath: string;
   instanceType: string;
   maxCapacity: number;
@@ -212,6 +217,18 @@ systemctl enable --now ninja-habits-api.service`);
         open: false,
       }).addTargetGroups('HttpTargets', {
         targetGroups: [targetGroup],
+      });
+    }
+
+    if (props.certificateArn && props.apiDomain && props.hostedZoneId && props.hostedZoneName) {
+      const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+        hostedZoneId:   props.hostedZoneId,
+        zoneName:       props.hostedZoneName,
+      });
+      new route53.ARecord(this, 'ApiAliasRecord', {
+        zone:       hostedZone,
+        recordName: props.apiDomain,
+        target:     route53.RecordTarget.fromAlias(new route53targets.LoadBalancerTarget(alb)),
       });
     }
 
