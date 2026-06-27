@@ -1,4 +1,5 @@
 import * as cdk from 'aws-cdk-lib';
+import * as iam from 'aws-cdk-lib/aws-iam';
 import * as logs from 'aws-cdk-lib/aws-logs';
 import * as wafv2 from 'aws-cdk-lib/aws-wafv2';
 import { Construct } from 'constructs';
@@ -190,13 +191,30 @@ export class WafStack extends cdk.Stack {
       removalPolicy: stageName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
-    // WAFv2 は `:*` サフィックスなしの ARN を要求するため cdk.Arn.format で組み立てる。
-    // wafLogGroup.logGroupArn は末尾に `:*` を付けるため使えない。
+    // WAFv2 が CloudWatch Logs に書き込むには delivery.logs.amazonaws.com への
+    // リソースポリシーが必要。これがないと "invalid ARN" エラーになる。
     const wafLogGroupArn = cdk.Stack.of(this).formatArn({
       service:      'logs',
       resource:     'log-group',
       resourceName: wafLogGroup.logGroupName,
       arnFormat:    cdk.ArnFormat.COLON_RESOURCE_NAME,
+    });
+
+    new logs.CfnResourcePolicy(this, 'WafLogGroupResourcePolicy', {
+      policyName: `ninja-habits-${stageName}-waf-logs`,
+      policyDocument: JSON.stringify({
+        Version: '2012-10-17',
+        Statement: [{
+          Effect:    'Allow',
+          Principal: { Service: 'delivery.logs.amazonaws.com' },
+          Action:    ['logs:CreateLogStream', 'logs:PutLogEvents'],
+          Resource:  `${wafLogGroupArn}:*`,
+          Condition: {
+            StringEquals: { 'aws:SourceAccount': this.account },
+            ArnLike:      { 'aws:SourceArn': `arn:aws:logs:${this.region}:${this.account}:*` },
+          },
+        }],
+      }),
     });
 
     new wafv2.CfnLoggingConfiguration(this, 'WafLoggingConfig', {
