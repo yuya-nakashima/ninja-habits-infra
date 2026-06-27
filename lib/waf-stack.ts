@@ -185,8 +185,9 @@ export class WafStack extends cdk.Stack {
     // WAF log group name must start with "aws-waf-logs-"
     // -----------------------------------------------------------------------
 
+    // WAFv2 requires log group name starting with "aws-waf-logs-" without leading "/".
     const wafLogGroup = new logs.LogGroup(this, 'WafLogGroup', {
-      logGroupName:  `/aws-waf-logs-ninja-habits-${stageName}-api`,
+      logGroupName:  `aws-waf-logs-ninja-habits-${stageName}-api`,
       retention:     logs.RetentionDays.ONE_MONTH,
       removalPolicy: stageName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
