@@ -13,7 +13,7 @@ set -euo pipefail
 STAGE="${STAGE:-dev}"
 AWS_REGION="${AWS_REGION:-ap-northeast-1}"
 STACK_NAME="NinjaHabits-${STAGE}-Hosting"
-DIST_DIR="$(cd "$(dirname "$0")/../../ninja-habits" && pwd)/dist"
+DIST_DIR="${DIST_DIR:-$(cd "$(dirname "$0")/../../ninja-habits" && pwd)/dist}"
 
 if [ ! -d "$DIST_DIR" ]; then
   echo "Error: build output not found at $DIST_DIR" >&2

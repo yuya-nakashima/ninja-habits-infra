@@ -1,0 +1,102 @@
+# Release the ninja-habits frontend: build the SPA from the app repo, then sync
+# to S3 and invalidate CloudFront.
+#
+# Required repo secrets:
+#   NINJA_HABITS_AWS_DEPLOY_ROLE_ARN  ARN of CicdStack's ReleaseRole (output: ReleaseRoleArn)
+#   NINJA_HABITS_APP_REPO_TOKEN       token with read access to yuya-nakashima/ninja-habits
+#                                     (PAT or GitHub App token; only needed if that repo is private)
+#
+# Prereqs for the target stage (manual, once): deploy Hosting and Auth stacks.
+# See docs/deploy.md.
+
+name: Release Web
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: Target stage
+        type: choice
+        options: [dev, prod]
+        default: dev
+      app_ref:
+        description: ninja-habits ref to build (branch/tag/sha)
+        type: string
+        default: main
+
+concurrency:
+  group: release-web-${{ inputs.stage }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+  STAGE: ${{ inputs.stage }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout infra (scripts)
+        uses: actions/checkout@v4
+
+      - name: Checkout app (ninja-habits)
+        uses: actions/checkout@v4
+        with:
+          repository: yuya-nakashima/ninja-habits
+          ref: ${{ inputs.app_ref }}
+          token: ${{ secrets.NINJA_HABITS_APP_REPO_TOKEN }}
+          path: app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Assume role before build: we need SSM GetParameter for the Cognito client ID.
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.NINJA_HABITS_AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set Vite build env vars
+        run: |
+          set -euo pipefail
+          case "$STAGE" in
+            dev)
+              echo "VITE_DEV_AUTH=false"                                                                      >> "$GITHUB_ENV"
+              echo "VITE_API_BASE_URL=https://api-dev.ninja-habits.com"                                       >> "$GITHUB_ENV"
+              echo "VITE_COGNITO_DOMAIN=https://ninja-habits-dev.auth.ap-northeast-1.amazoncognito.com"       >> "$GITHUB_ENV"
+              echo "VITE_COGNITO_REDIRECT_URI=https://dev.ninja-habits.com/"                                  >> "$GITHUB_ENV"
+              echo "VITE_COGNITO_LOGOUT_URI=https://dev.ninja-habits.com/"                                    >> "$GITHUB_ENV"
+              ;;
+            prod)
+              # Populate when prod Auth + Hosting stacks are deployed.
+              echo "prod stage env vars not configured yet" >&2
+              exit 1
+              ;;
+          esac
+          # Cognito client ID is generated at stack deploy time → read from SSM.
+          CLIENT_ID=$(aws ssm get-parameter \
+            --region "$AWS_REGION" \
+            --name "/ninja-habits/$STAGE/api/cognito-client-id" \
+            --query 'Parameter.Value' \
+            --output text)
+          echo "VITE_COGNITO_CLIENT_ID=$CLIENT_ID" >> "$GITHUB_ENV"
+
+      - name: Build, test and package web
+        working-directory: app
+        run: |
+          set -euo pipefail
+          npm ci
+          npm test
+          # vite build picks up VITE_* env vars from the shell environment.
+          npx vite build
+
+      - name: Sync to S3 and invalidate CloudFront
+        env:
+          DIST_DIR: ${{ github.workspace }}/app/dist
+        run: bash scripts/sync-app.sh
