@@ -29,7 +29,14 @@ new CicdStack(app, 'NinjaHabits-Cicd', {
   env,
 });
 
-new HostingStack(app, `NinjaHabits-${stage}-Hosting`, { stageName: stage, env });
+new HostingStack(app, `NinjaHabits-${stage}-Hosting`, {
+  stageName:                stage,
+  webDomain:                config.domain?.webDomain,
+  hostedZoneId:             config.domain?.hostedZoneId,
+  hostedZoneName:           config.domain?.hostedZoneName,
+  cloudFrontCertificateArn: config.domain?.cloudFrontCertificateArn,
+  env,
+});
 
 new AuthStack(app, `NinjaHabits-${stage}-Auth`, {
   stageName:    stage,
@@ -73,6 +80,9 @@ const apiStack = new ApiStack(app, `NinjaHabits-${stage}-Api`, {
   stageName:                stage,
   appPort:                  config.api.appPort,
   certificateArn:           config.api.certificateArn,
+  apiDomain:                config.domain?.apiDomain,
+  hostedZoneId:             config.domain?.hostedZoneId,
+  hostedZoneName:           config.domain?.hostedZoneName,
   healthCheckPath:          config.api.healthCheckPath,
   instanceType:             config.api.instanceType,
   maxCapacity:              config.api.maxCapacity,

@@ -1,11 +1,18 @@
 import * as cdk from 'aws-cdk-lib';
-import * as s3 from 'aws-cdk-lib/aws-s3';
+import * as acm from 'aws-cdk-lib/aws-certificatemanager';
 import * as cloudfront from 'aws-cdk-lib/aws-cloudfront';
 import * as origins from 'aws-cdk-lib/aws-cloudfront-origins';
+import * as route53 from 'aws-cdk-lib/aws-route53';
+import * as route53targets from 'aws-cdk-lib/aws-route53-targets';
+import * as s3 from 'aws-cdk-lib/aws-s3';
 import { Construct } from 'constructs';
 
 interface HostingStackProps extends cdk.StackProps {
   stageName: string;
+  webDomain?: string;                  // 例: dev.ninja-habits.com
+  hostedZoneId?: string;
+  hostedZoneName?: string;
+  cloudFrontCertificateArn?: string;   // us-east-1 の ACM 証明書
 }
 
 export class HostingStack extends cdk.Stack {
@@ -56,6 +63,9 @@ export class HostingStack extends cdk.Stack {
       },
     });
 
+    const { webDomain, hostedZoneId, hostedZoneName, cloudFrontCertificateArn } = props;
+    const hasCustomDomain = !!(webDomain && hostedZoneId && hostedZoneName && cloudFrontCertificateArn);
+
     // CloudFront distribution
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
@@ -70,10 +80,26 @@ export class HostingStack extends cdk.Stack {
         { httpStatus: 403, responseHttpStatus: 200, responsePagePath: '/index.html' },
         { httpStatus: 404, responseHttpStatus: 200, responsePagePath: '/index.html' },
       ],
+      ...(hasCustomDomain && {
+        domainNames:  [webDomain!],
+        certificate:  acm.Certificate.fromCertificateArn(this, 'Certificate', cloudFrontCertificateArn!),
+      }),
       enableLogging: true,
       logBucket,
       logFilePrefix: 'cf-access/',
     });
+
+    if (hasCustomDomain) {
+      const hostedZone = route53.HostedZone.fromHostedZoneAttributes(this, 'HostedZone', {
+        hostedZoneId:  hostedZoneId!,
+        zoneName:      hostedZoneName!,
+      });
+      new route53.ARecord(this, 'WebAliasRecord', {
+        zone:       hostedZone,
+        recordName: webDomain!,
+        target:     route53.RecordTarget.fromAlias(new route53targets.CloudFrontTarget(distribution)),
+      });
+    }
 
     new cdk.CfnOutput(this, 'BucketName', {
       value:       bucket.bucketName,
