@@ -94,7 +94,7 @@ jobs:
           npm ci
           npm test
           # vite build picks up VITE_* env vars from the shell environment.
-          vite build
+          npx vite build
 
       - name: Sync to S3 and invalidate CloudFront
         env:
