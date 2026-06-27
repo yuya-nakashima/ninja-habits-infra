@@ -119,15 +119,24 @@ export class WafStack extends cdk.Stack {
     // P2: AWS Managed Rules — Common Rule Set (OWASP top 10 baseline)
     // COUNT mode in dev so we can observe without breaking traffic.
     // Switch to BLOCK (remove overrideAction: count) for prod.
+    //
+    // SizeRestrictions_BODY は dev/prod 問わず常に COUNT。
+    // /v1/reflections は 3 フィールド × 最大 5000 文字を許可しており、
+    // BLOCK にするとユーザーが仕様上有効な長い振り返りを保存できなくなる。
     rules.push({
       name:             'AWSManagedRulesCommonRuleSet',
       priority:         priority++,
-      // count in dev / block in prod by checking stageName
       overrideAction:   stageName === 'prod' ? { none: {} } : { count: {} },
       statement: {
         managedRuleGroupStatement: {
           vendorName: 'AWS',
           name:       'AWSManagedRulesCommonRuleSet',
+          ruleActionOverrides: [
+            {
+              name:       'SizeRestrictions_BODY',
+              actionToUse: { count: {} },
+            },
+          ],
         },
       },
       visibilityConfig: {
