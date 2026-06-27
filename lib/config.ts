@@ -12,11 +12,26 @@ export interface DomainConfig {
   cloudFrontCertificateArn:  string; // us-east-1 の ACM 証明書（CloudFront 専用）
 }
 
+export interface WafConfig {
+  /**
+   * IP deny-list: IPv4/IPv6 CIDR 表記で明示ブロックしたいアドレス。
+   * デフォルト空。悪意ある送信元が判明したら追加して再デプロイ。
+   * 例: ['203.0.113.0/24', '2001:db8::/32']
+   */
+  ipDenyList?: string[];
+  /**
+   * Rate-based rule の閾値（5分間あたりのリクエスト数）。デフォルト 2000。
+   * トラフィック実績が分かったら本番向けに調整する。
+   */
+  rateLimit?: number;
+}
+
 export interface StageConfig {
   stageName: string;
   region:    string;
   account?:  string; // explicit account overrides CDK_DEFAULT_ACCOUNT
   domain?:   DomainConfig;
+  waf?:      WafConfig;
   auth: {
     apple?: {
       clientId: string;

@@ -7,6 +7,7 @@ import { CicdStack } from '../lib/cicd-stack';
 import { DatabaseStack } from '../lib/database-stack';
 import { HostingStack } from '../lib/hosting-stack';
 import { NetworkStack } from '../lib/network-stack';
+import { WafStack } from '../lib/waf-stack';
 import { getConfig, GITHUB_OWNER, GITHUB_REPO } from '../lib/config';
 
 const app = new cdk.App();
@@ -97,3 +98,13 @@ const apiStack = new ApiStack(app, `NinjaHabits-${stage}-Api`, {
 
 // API は DB 接続情報（SSM/secret）が存在してから起動する
 apiStack.addDependency(databaseStack);
+
+// WAF は ALB が存在してから紐付ける
+const wafStack = new WafStack(app, `NinjaHabits-${stage}-Waf`, {
+  stageName:   stage,
+  albArn:      apiStack.albArn,
+  ipDenyList:  config.waf?.ipDenyList,
+  rateLimit:   config.waf?.rateLimit,
+  env,
+});
+wafStack.addDependency(apiStack);
