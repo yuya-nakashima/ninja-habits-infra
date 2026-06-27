@@ -190,9 +190,18 @@ export class WafStack extends cdk.Stack {
       removalPolicy: stageName === 'prod' ? cdk.RemovalPolicy.RETAIN : cdk.RemovalPolicy.DESTROY,
     });
 
+    // WAFv2 は `:*` サフィックスなしの ARN を要求するため cdk.Arn.format で組み立てる。
+    // wafLogGroup.logGroupArn は末尾に `:*` を付けるため使えない。
+    const wafLogGroupArn = cdk.Stack.of(this).formatArn({
+      service:      'logs',
+      resource:     'log-group',
+      resourceName: wafLogGroup.logGroupName,
+      arnFormat:    cdk.ArnFormat.COLON_RESOURCE_NAME,
+    });
+
     new wafv2.CfnLoggingConfiguration(this, 'WafLoggingConfig', {
-      resourceArn:         webAcl.attrArn,
-      logDestinationConfigs: [wafLogGroup.logGroupArn],
+      resourceArn:           webAcl.attrArn,
+      logDestinationConfigs: [wafLogGroupArn],
     });
 
     // -----------------------------------------------------------------------
