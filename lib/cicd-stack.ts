@@ -110,6 +110,31 @@ export class CicdStack extends cdk.Stack {
       resources: ['*'], // DescribeInstanceRefreshes does not support resource-level scoping
     }));
 
+    // sync-app.sh (web release) -> S3 sync to the hosting bucket + CloudFront invalidation.
+    // Bucket name pattern: ninja-habits-{stage}-web-{account}
+    role.addToPolicy(new iam.PolicyStatement({
+      sid: 'WebSync',
+      actions: ['s3:PutObject', 's3:DeleteObject', 's3:GetObject'],
+      resources: [`arn:aws:s3:::ninja-habits-*-web-${account}/*`],
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      sid: 'WebSyncList',
+      actions: ['s3:ListBucket'],
+      resources: [`arn:aws:s3:::ninja-habits-*-web-${account}`],
+    }));
+    role.addToPolicy(new iam.PolicyStatement({
+      sid: 'CloudFrontInvalidate',
+      actions: ['cloudfront:CreateInvalidation'],
+      resources: [`arn:aws:cloudfront::${account}:distribution/*`],
+    }));
+
+    // release-web.yml build step -> fetch Cognito client ID for Vite env var.
+    role.addToPolicy(new iam.PolicyStatement({
+      sid: 'ReadCognitoClientId',
+      actions: ['ssm:GetParameter'],
+      resources: [`arn:aws:ssm:${region}:${account}:parameter/ninja-habits/*/api/cognito-client-id`],
+    }));
+
     new cdk.CfnOutput(this, 'ReleaseRoleArn', {
       value: role.roleArn,
       description: 'IAM role ARN for GitHub Actions OIDC (set as secret NINJA_HABITS_AWS_DEPLOY_ROLE_ARN)',
