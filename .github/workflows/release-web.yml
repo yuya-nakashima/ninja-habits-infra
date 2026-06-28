@@ -39,6 +39,9 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # prod は GitHub Environment "production" の手動承認ゲートを通す。
+    # dev は environment なし（即実行）。
+    environment: ${{ inputs.stage == 'prod' && 'production' || '' }}
     steps:
       - name: Checkout infra (scripts)
         uses: actions/checkout@v4
@@ -74,9 +77,11 @@ jobs:
               echo "VITE_COGNITO_LOGOUT_URI=https://dev.ninja-habits.com/"                                    >> "$GITHUB_ENV"
               ;;
             prod)
-              # Populate when prod Auth + Hosting stacks are deployed.
-              echo "prod stage env vars not configured yet" >&2
-              exit 1
+              echo "VITE_DEV_AUTH=false"                                                                >> "$GITHUB_ENV"
+              echo "VITE_API_BASE_URL=https://api.ninja-habits.com"                                     >> "$GITHUB_ENV"
+              echo "VITE_COGNITO_DOMAIN=https://ninja-habits-prod.auth.ap-northeast-1.amazoncognito.com" >> "$GITHUB_ENV"
+              echo "VITE_COGNITO_REDIRECT_URI=https://ninja-habits.com/"                                >> "$GITHUB_ENV"
+              echo "VITE_COGNITO_LOGOUT_URI=https://ninja-habits.com/"                                  >> "$GITHUB_ENV"
               ;;
           esac
           # Cognito client ID is generated at stack deploy time → read from SSM.

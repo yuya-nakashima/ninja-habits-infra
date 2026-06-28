@@ -41,6 +41,9 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # prod は GitHub Environment "production" の手動承認ゲートを通す。
+    # dev は environment なし（即実行）。
+    environment: ${{ inputs.stage == 'prod' && 'production' || '' }}
     steps:
       - name: Checkout infra (scripts)
         uses: actions/checkout@v4
