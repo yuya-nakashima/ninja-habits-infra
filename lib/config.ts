@@ -113,18 +113,24 @@ export const STAGES: Record<string, StageConfig> = {
   prod: {
     stageName: 'prod',
     region:    'ap-northeast-1',
+    domain: {
+      hostedZoneId:             'Z036921413X8FF54G71K8',
+      hostedZoneName:           'ninja-habits.com',
+      apiDomain:                'api.ninja-habits.com',
+      webDomain:                'ninja-habits.com',
+      // dev と同じワイルドカード証明書（*.ninja-habits.com）を共用
+      cloudFrontCertificateArn: 'arn:aws:acm:us-east-1:720623131603:certificate/3058bcf1-13ae-46ff-90ea-3cdc352080bd',
+    },
     auth: {
-      // Replace with the production Web origin before deploying prod Auth.
-      callbackUrls: ['https://example.com/'],
+      callbackUrls: ['https://ninja-habits.com/'],
       domainPrefix: 'ninja-habits-prod',
-      logoutUrls:   ['https://example.com/'],
+      logoutUrls:   ['https://ninja-habits.com/'],
     },
     api: {
-      // Public consumer API until WAF/domain policy is finalized before launch.
       allowedWebCidrs:  ['0.0.0.0/0'],
-      // Replace with the production Web origin before deploying prod Api.
-      apiAllowedOrigin: 'https://example.com',
+      apiAllowedOrigin: 'https://ninja-habits.com',
       appPort:          8080,
+      certificateArn:   'arn:aws:acm:ap-northeast-1:720623131603:certificate/b733b3c3-0a99-43ac-a9bc-2e1cc25581c6',
       healthCheckPath:  '/health',
       instanceType:     't3.micro',
       maxCapacity:      4,
