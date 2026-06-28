@@ -23,6 +23,8 @@ interface DatabaseStackProps extends cdk.StackProps {
 export class DatabaseStack extends cdk.Stack {
   // API インスタンスロールへ scoped grant するため公開する。
   public readonly adminSecret: secretsmanager.ISecret;
+  /** CloudWatch Alarm で使う RDS インスタンス識別子。 */
+  public readonly dbInstanceId: string;
 
   constructor(scope: Construct, id: string, props: DatabaseStackProps) {
     super(scope, id, props);
@@ -86,6 +88,8 @@ export class DatabaseStack extends cdk.Stack {
       vpc: props.vpc,
       vpcSubnets: { subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
     });
+
+    this.dbInstanceId = instance.instanceIdentifier;
 
     // API インスタンスが起動時に解決する DB 接続情報（DATABASE_URL 組み立て用）。
     const ssmPrefix = `/ninja-habits/${props.stageName}/db`;
