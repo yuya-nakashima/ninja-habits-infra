@@ -8,6 +8,7 @@ import { DatabaseStack } from '../lib/database-stack';
 import { HostingStack } from '../lib/hosting-stack';
 import { NetworkStack } from '../lib/network-stack';
 import { WafStack } from '../lib/waf-stack';
+import { AlarmStack, CloudFrontAlarmStack } from '../lib/alarm-stack';
 import { getConfig, GITHUB_OWNER, GITHUB_REPO } from '../lib/config';
 
 const app = new cdk.App();
@@ -30,7 +31,7 @@ new CicdStack(app, 'NinjaHabits-Cicd', {
   env,
 });
 
-new HostingStack(app, `NinjaHabits-${stage}-Hosting`, {
+const hostingStack = new HostingStack(app, `NinjaHabits-${stage}-Hosting`, {
   stageName:                stage,
   webDomain:                config.domain?.webDomain,
   hostedZoneId:             config.domain?.hostedZoneId,
@@ -108,3 +109,23 @@ const wafStack = new WafStack(app, `NinjaHabits-${stage}-Waf`, {
   env,
 });
 wafStack.addDependency(apiStack);
+
+// Regional alarms (ap-northeast-1): ALB / RDS / WAF
+const alarmStack = new AlarmStack(app, `NinjaHabits-${stage}-Alarms`, {
+  stageName:     stage,
+  albFullName:   apiStack.albFullName,
+  dbInstanceId:  databaseStack.dbInstanceId,
+  wafWebAclName: `ninja-habits-${stage}-api`,
+  env,
+});
+alarmStack.addDependency(apiStack);
+alarmStack.addDependency(databaseStack);
+alarmStack.addDependency(wafStack);
+
+// CloudFront alarms must live in us-east-1
+const cfAlarmStack = new CloudFrontAlarmStack(app, `NinjaHabits-${stage}-CloudFrontAlarms`, {
+  stageName:      stage,
+  distributionId: hostingStack.distributionId,
+  env: { account: env.account, region: 'us-east-1' },
+});
+cfAlarmStack.addDependency(hostingStack);

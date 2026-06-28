@@ -35,6 +35,8 @@ interface ApiStackProps extends cdk.StackProps {
 export class ApiStack extends cdk.Stack {
   /** WAF アタッチに使う ALB ARN（WafStack が参照）。 */
   public readonly albArn: string;
+  /** CloudWatch Alarm で使う ALB フルネーム（app/<name>/<id> 形式）。 */
+  public readonly albFullName: string;
 
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
@@ -235,7 +237,8 @@ systemctl enable --now ninja-habits-api.service`);
       });
     }
 
-    this.albArn = alb.loadBalancerArn;
+    this.albArn      = alb.loadBalancerArn;
+    this.albFullName = alb.loadBalancerFullName;
 
     new cdk.CfnOutput(this, 'ApiAlbDnsName', {
       value:       alb.loadBalancerDnsName,
