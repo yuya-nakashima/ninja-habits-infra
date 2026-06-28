@@ -33,6 +33,9 @@ interface ApiStackProps extends cdk.StackProps {
 }
 
 export class ApiStack extends cdk.Stack {
+  /** WAF アタッチに使う ALB ARN（WafStack が参照）。 */
+  public readonly albArn: string;
+
   constructor(scope: Construct, id: string, props: ApiStackProps) {
     super(scope, id, props);
 
@@ -231,6 +234,8 @@ systemctl enable --now ninja-habits-api.service`);
         target:     route53.RecordTarget.fromAlias(new route53targets.LoadBalancerTarget(alb)),
       });
     }
+
+    this.albArn = alb.loadBalancerArn;
 
     new cdk.CfnOutput(this, 'ApiAlbDnsName', {
       value:       alb.loadBalancerDnsName,
