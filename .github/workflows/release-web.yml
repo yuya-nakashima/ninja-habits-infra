@@ -71,7 +71,7 @@ jobs:
           case "$STAGE" in
             dev)
               echo "VITE_DEV_AUTH=false"                                                                      >> "$GITHUB_ENV"
-              echo "VITE_API_BASE_URL=https://api-dev.ninja-habits.com"                                       >> "$GITHUB_ENV"
+              echo "VITE_API_BASE_URL=https://ninja-habits-api-dev-3q2ccf6onq-an.a.run.app"                                       >> "$GITHUB_ENV"
               echo "VITE_COGNITO_DOMAIN=https://ninja-habits-dev.auth.ap-northeast-1.amazoncognito.com"       >> "$GITHUB_ENV"
               echo "VITE_COGNITO_REDIRECT_URI=https://dev.ninja-habits.com/"                                  >> "$GITHUB_ENV"
               echo "VITE_COGNITO_LOGOUT_URI=https://dev.ninja-habits.com/"                                    >> "$GITHUB_ENV"
