@@ -78,7 +78,7 @@ jobs:
               ;;
             prod)
               echo "VITE_DEV_AUTH=false"                                                                >> "$GITHUB_ENV"
-              echo "VITE_API_BASE_URL=https://api.ninja-habits.com"                                     >> "$GITHUB_ENV"
+              echo "VITE_API_BASE_URL=https://ninja-habits-api-prod-3q2ccf6onq-an.a.run.app"                                     >> "$GITHUB_ENV"
               echo "VITE_COGNITO_DOMAIN=https://ninja-habits-prod.auth.ap-northeast-1.amazoncognito.com" >> "$GITHUB_ENV"
               echo "VITE_COGNITO_REDIRECT_URI=https://ninja-habits.com/"                                >> "$GITHUB_ENV"
               echo "VITE_COGNITO_LOGOUT_URI=https://ninja-habits.com/"                                  >> "$GITHUB_ENV"
