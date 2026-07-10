@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 150" width="320" height="150">
+  <g transform="translate(136 10) scale(0.4444)">
+    <path fill="#F0F0F0" fill-rule="evenodd" d="M54,6 L68,45 L102,54 L63,68 L54,102 L40,63 L6,54 L45,40 Z M64,54 a10,10 0 1,0 -20,0 a10,10 0 1,0 20,0" />
+  </g>
+  <text x="160" y="100" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-weight="700" font-size="26" letter-spacing="3.6">
+    <tspan fill="#F0F0F0">NINJA </tspan><tspan fill="#8A8F9E">HABITS</tspan>
+  </text>
+</svg>
