@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 import 'source-map-support/register';
 import * as cdk from 'aws-cdk-lib';
-import { ApiStack } from '../lib/api-stack';
 import { AuthStack } from '../lib/auth-stack';
 import { CicdStack } from '../lib/cicd-stack';
-import { DatabaseStack } from '../lib/database-stack';
 import { HostingStack } from '../lib/hosting-stack';
-import { NetworkStack } from '../lib/network-stack';
-import { WafStack } from '../lib/waf-stack';
 import { getConfig, GITHUB_OWNER, GITHUB_REPO } from '../lib/config';
+
+// サーバーレス移行（2026-07-03）後の残存スタック。
+// API は Google Cloud Run（ninja-habits/.github/workflows/deploy-api.yml）、
+// DB は Neon（外部）へ移行したため、Network / Database / Api / Waf / Alarm スタックは撤去済み。
+// ここに残すのは AWS 上でほぼ無料の Hosting（S3+CloudFront）/ Auth（Cognito）/ Cicd（Web 用 OIDC ロール）のみ。
 
 const app = new cdk.App();
 
@@ -21,7 +22,7 @@ const env = {
   region:  config.region,
 };
 
-// Account-level CI/CD（stage 非依存）。GitHub OIDC provider + release role。
+// Account-level CI/CD（stage 非依存）。GitHub OIDC provider + Web release ロール。
 // 既存 OIDC provider を再利用する場合: --context oidcProviderArn=arn:...
 new CicdStack(app, 'NinjaHabits-Cicd', {
   githubOwner:             GITHUB_OWNER,
@@ -48,63 +49,3 @@ new AuthStack(app, `NinjaHabits-${stage}-Auth`, {
   logoutUrls:   config.auth.logoutUrls,
   env,
 });
-
-// 依存の根: VPC / SG / 成果物バケットを所有。Database / Api が参照する。
-const networkStack = new NetworkStack(app, `NinjaHabits-${stage}-Network`, {
-  stageName:       stage,
-  vpcCidr:          config.api.vpcCidr,
-  natGateways:      config.api.natGateways,
-  allowedWebCidrs:  config.api.allowedWebCidrs,
-  apiAllowedOrigin: config.api.apiAllowedOrigin,
-  appPort:          config.api.appPort,
-  certificateArn:   config.api.certificateArn,
-  env,
-});
-
-// デプロイ順: Network → Database → Api（API 起動時に DB が存在する状態にする）
-const databaseStack = new DatabaseStack(app, `NinjaHabits-${stage}-Database`, {
-  stageName:                stage,
-  allocatedStorage:         config.database.allocatedStorage,
-  apiInstanceSecurityGroup: networkStack.apiInstanceSecurityGroup,
-  backupRetentionDays:      config.database.backupRetentionDays,
-  databaseName:             config.database.databaseName,
-  deletionProtection:       config.database.deletionProtection,
-  instanceType:             config.database.instanceType,
-  maxAllocatedStorage:      config.database.maxAllocatedStorage,
-  multiAz:                  config.database.multiAz,
-  removalPolicy:            config.database.removalPolicy,
-  vpc:                      networkStack.vpc,
-  env,
-});
-
-const apiStack = new ApiStack(app, `NinjaHabits-${stage}-Api`, {
-  stageName:                stage,
-  appPort:                  config.api.appPort,
-  certificateArn:           config.api.certificateArn,
-  apiDomain:                config.domain?.apiDomain,
-  hostedZoneId:             config.domain?.hostedZoneId,
-  hostedZoneName:           config.domain?.hostedZoneName,
-  healthCheckPath:          config.api.healthCheckPath,
-  instanceType:             config.api.instanceType,
-  maxCapacity:              config.api.maxCapacity,
-  minCapacity:              config.api.minCapacity,
-  vpc:                      networkStack.vpc,
-  albSecurityGroup:         networkStack.albSecurityGroup,
-  apiInstanceSecurityGroup: networkStack.apiInstanceSecurityGroup,
-  artifactBucket:           networkStack.artifactBucket,
-  databaseSecret:           databaseStack.adminSecret,
-  env,
-});
-
-// API は DB 接続情報（SSM/secret）が存在してから起動する
-apiStack.addDependency(databaseStack);
-
-// WAF は ALB が存在してから紐付ける
-const wafStack = new WafStack(app, `NinjaHabits-${stage}-Waf`, {
-  stageName:   stage,
-  albArn:      apiStack.albArn,
-  ipDenyList:  config.waf?.ipDenyList,
-  rateLimit:   config.waf?.rateLimit,
-  env,
-});
-wafStack.addDependency(apiStack);

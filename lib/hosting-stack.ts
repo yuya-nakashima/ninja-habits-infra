@@ -16,6 +16,9 @@ interface HostingStackProps extends cdk.StackProps {
 }
 
 export class HostingStack extends cdk.Stack {
+  /** CloudWatch Alarm（us-east-1）で使う CloudFront ディストリビューション ID。 */
+  public readonly distributionId: string;
+
   constructor(scope: Construct, id: string, props: HostingStackProps) {
     super(scope, id, props);
 
@@ -100,6 +103,8 @@ export class HostingStack extends cdk.Stack {
         target:     route53.RecordTarget.fromAlias(new route53targets.CloudFrontTarget(distribution)),
       });
     }
+
+    this.distributionId = distribution.distributionId;
 
     new cdk.CfnOutput(this, 'BucketName', {
       value:       bucket.bucketName,

@@ -12,9 +12,11 @@ interface CicdStackProps extends cdk.StackProps {
 
 /**
  * Account-level CI/CD resources: the GitHub Actions OIDC provider and the IAM
- * role the release workflow assumes. The role is scoped to exactly the release
- * flow (upload -> migrate -> promote -> refresh) for NinjaHabits-* stacks; it
- * does NOT grant cdk deploy or DB-secret access (the instance role reads those).
+ * role the web release workflow assumes. The API now runs on Cloud Run (deployed
+ * via GCP Workload Identity Federation, see ninja-habits/.github/workflows/deploy-api.yml),
+ * so this role is scoped to the web release flow only (S3 sync + CloudFront
+ * invalidation + reading the Cognito client id). It does NOT grant cdk deploy or
+ * any API/RDS/artifact/instance-refresh permissions.
  */
 export class CicdStack extends cdk.Stack {
   constructor(scope: Construct, id: string, props: CicdStackProps) {
@@ -29,10 +31,8 @@ export class CicdStack extends cdk.Stack {
 
     const role = new iam.Role(this, 'ReleaseRole', {
       roleName: 'ninja-habits-ci-release',
-      description: 'Assumed by GitHub Actions (ninja-habits-infra) to run the API release flow',
-      // upload + migration + instance refresh (refresh-api.sh waits up to ~40min)
-      // can exceed 1h; give headroom. Workflow requests role-duration-seconds to match.
-      maxSessionDuration: cdk.Duration.hours(2),
+      description: 'Assumed by GitHub Actions (ninja-habits-infra) to run the web release flow (S3 sync + CloudFront invalidation)',
+      maxSessionDuration: cdk.Duration.hours(1),
       assumedBy: new iam.OpenIdConnectPrincipal(provider, {
         StringEquals: {
           'token.actions.githubusercontent.com:aud': 'sts.amazonaws.com',
@@ -47,67 +47,12 @@ export class CicdStack extends cdk.Stack {
     const region = this.region;
     const account = this.account;
 
-    // Resolve stack outputs (artifact bucket name, ASG name).
+    // sync-app.sh resolves the web bucket name + CloudFront distribution id from
+    // the Hosting stack outputs.
     role.addToPolicy(new iam.PolicyStatement({
       sid: 'DescribeStacks',
       actions: ['cloudformation:DescribeStacks'],
       resources: [`arn:aws:cloudformation:${region}:${account}:stack/NinjaHabits-*/*`],
-    }));
-
-    // set-api-artifact.sh upload -> S3 put on the deterministic artifact buckets.
-    // Multipart actions cover large tgz uploads / failed-upload cleanup by the CLI.
-    role.addToPolicy(new iam.PolicyStatement({
-      sid: 'ArtifactUpload',
-      actions: ['s3:PutObject', 's3:AbortMultipartUpload', 's3:ListMultipartUploadParts'],
-      resources: ['arn:aws:s3:::ninja-habits-api-artifacts-*/*'],
-    }));
-
-    // set-api-artifact.sh promote -> ONLY the artifact-key parameter (per stage),
-    // not DB endpoint/name/secret-arn or other runtime config under /ninja-habits/*.
-    role.addToPolicy(new iam.PolicyStatement({
-      sid: 'PromoteArtifactKey',
-      actions: ['ssm:PutParameter'],
-      resources: [`arn:aws:ssm:${region}:${account}:parameter/ninja-habits/*/api/artifact-key`],
-    }));
-
-    // run-migration.sh -> SSM Run Command against the AWS-managed shell document,
-    // restricted to API instances by tag.
-    role.addToPolicy(new iam.PolicyStatement({
-      sid: 'MigrationSendCommandDocument',
-      actions: ['ssm:SendCommand'],
-      resources: [`arn:aws:ssm:${region}::document/AWS-RunShellScript`],
-    }));
-    role.addToPolicy(new iam.PolicyStatement({
-      sid: 'MigrationSendCommandInstances',
-      actions: ['ssm:SendCommand'],
-      resources: [`arn:aws:ec2:${region}:${account}:instance/*`],
-      conditions: {
-        StringEquals: { 'ssm:resourceTag/Role': 'ninja-habits-api' },
-      },
-    }));
-    role.addToPolicy(new iam.PolicyStatement({
-      sid: 'MigrationCommandResult',
-      actions: ['ssm:GetCommandInvocation'],
-      resources: ['*'], // command-invocation ARNs are not knowable at deploy time
-    }));
-
-    // run-migration.sh target selection (list/describe APIs need *).
-    role.addToPolicy(new iam.PolicyStatement({
-      sid: 'TargetSelection',
-      actions: ['ssm:DescribeInstanceInformation', 'ec2:DescribeInstances'],
-      resources: ['*'],
-    }));
-
-    // refresh-api.sh -> instance refresh on the API ASGs.
-    role.addToPolicy(new iam.PolicyStatement({
-      sid: 'InstanceRefreshStart',
-      actions: ['autoscaling:StartInstanceRefresh'],
-      resources: [`arn:aws:autoscaling:${region}:${account}:autoScalingGroup:*:autoScalingGroupName/NinjaHabits-*`],
-    }));
-    role.addToPolicy(new iam.PolicyStatement({
-      sid: 'InstanceRefreshDescribe',
-      actions: ['autoscaling:DescribeInstanceRefreshes'],
-      resources: ['*'], // DescribeInstanceRefreshes does not support resource-level scoping
     }));
 
     // sync-app.sh (web release) -> S3 sync to the hosting bucket + CloudFront invalidation.
