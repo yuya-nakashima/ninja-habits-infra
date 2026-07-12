@@ -113,7 +113,26 @@ npm run deploy:dev             # NinjaHabits-dev-Hosting + NinjaHabits-dev-Auth
 - 残るのは小額のみ: Cloud Run（従量・アイドル$0）/ Artifact Registry / GCP Secret Manager /
   Neon（free plan, scale-to-zero）/ Cognito（無料枠）/ S3+CloudFront（低トラフィック）/
   Route53 Hosted Zone（~$0.5/月）/ ACM（無料）。
-- 目安: **月 $1 未満〜数ドル + ドメイン年額**。
+- 目安: **月 $1 未満〜数ドル + ドメイン年額**。これを明確に超える請求が見えたら異常として調査する。
+
+### コスト監視・金額操作のルール（2026-07-12 追記）
+
+2026-07 の実例からの教訓:
+
+- **通貨事故**: GCP 課金アカウント「Firebase のお支払い」（`01A8AB-991CE4-520308`）の通貨は **SGD**（JPY ではない）。
+  予算を `1500JPY` 指定で作成したところ SGD 1,500（≈¥17万）の予算になった。発見後 **SGD 15（≈¥1,700）に修正済み**。
+- **発見遅れ**: 2026-06 に run-rate ~$460/月へ到達したが、月初の請求額には数日分しか反映されず実態把握が遅れた
+  （請求額でなく **run-rate（日割り×30）** で見る）。
+
+ルール:
+
+1. 金額を指定する操作（予算・アラート・課金リソース作成）の前に、**課金アカウントの通貨を確認**する
+   （GCP: `gcloud billing accounts list`、AWS: USD 固定）。作成後は実値を読み戻して金額・通貨を検証する。
+2. 常時課金リソース（NAT / RDS / ALB / EC2 / min-instances>0 等）を作る変更は、**月額見積りを添えて**判断する。
+3. アラート現況:
+   - GCP: 予算 `ninja-habits`（**SGD 15/月**、50/90/100% でメール通知、対象 project 限定）
+   - AWS: Budgets 未設定（残置は Hosting/Auth/Route53 のみでほぼ $1/月未満。設定するなら $5/月 閾値を推奨）
+   - Neon: free plan の usage 上限で自動停止（超過課金なし）
 
 ## Neon の dev/prod 分離方針
 
