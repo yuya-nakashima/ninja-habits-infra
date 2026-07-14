@@ -126,12 +126,15 @@ npm run deploy:dev             # NinjaHabits-dev-Hosting + NinjaHabits-dev-Auth
 
 ルール:
 
-1. 金額を指定する操作（予算・アラート・課金リソース作成）の前に、**課金アカウントの通貨を確認**する
-   （GCP: `gcloud billing accounts list`、AWS: USD 固定）。作成後は実値を読み戻して金額・通貨を検証する。
+1. 金額を指定する操作（予算・アラート・課金リソース作成）の前に、**課金アカウントの通貨・表示単位を確認**する。
+   GCP は `gcloud billing accounts list`、AWS は Cost Explorer / Budgets の作成値を読み戻して確認する。
+   作成後は必ず実値を読み戻して**金額・通貨・対象スコープ**を検証する。
 2. 常時課金リソース（NAT / RDS / ALB / EC2 / min-instances>0 等）を作る変更は、**月額見積りを添えて**判断する。
 3. アラート現況:
    - GCP: 予算 `ninja-habits`（**SGD 15/月**、50/90/100% でメール通知、対象 project 限定）
-   - AWS: Budgets 未設定（残置は Hosting/Auth/Route53 のみでほぼ $1/月未満。設定するなら $5/月 閾値を推奨）
+   - AWS: Budgets 未設定。作成する場合は、Cost Explorer で当月実績・run-rate・対象スコープ
+     （アカウント全体 / Ninja 関連のみ。アカウント全体には非 Ninja の EC2 3台も含まれる点に注意）を
+     確認してから閾値を決め、作成後に BudgetLimit と通知先を読み戻す。通知のみの Budgets は無料（Budget Actions は別料金）
    - Neon: free plan の usage 上限で自動停止（超過課金なし）
 
 ## Neon の dev/prod 分離方針
